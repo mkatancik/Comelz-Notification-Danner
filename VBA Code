@@ -1,0 +1,143 @@
+Option Compare Database
+
+Private Sub Form_Open(Cancel As Integer)
+
+DoCmd.ShowToolbar "Ribbon", acToolbarNo
+
+End Sub
+
+Private Sub Submit_Button_Click()
+
+'Telling it what table to write to
+Dim mydb As Database
+Dim rst As DAO.Recordset
+Dim myTable As String
+myTable = "Attendance Table V2"
+Set mydb = CurrentDb()
+Set rst = mydb.OpenRecordset(myTable)
+
+'Add new record
+rst.AddNew
+
+'Building the pop up message of who needs training
+Dim Message As String
+Message = "The following operators need marking table training:" & (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10))
+'Builds part of pop up for Comelz training
+Dim secondMessage As String
+secondMessage = (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10)) & "The following operators need Comelz training:" & (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10))
+
+'Matrix with the checkboxes
+Dim Checks(0 To 1, 0 To 10) As Boolean
+Checks(0, 0) = [M1]
+Checks(1, 0) = [C1]
+Checks(0, 1) = [M2]
+Checks(1, 1) = [C2]
+Checks(0, 2) = [M3]
+Checks(1, 2) = [C3]
+Checks(0, 3) = [M4]
+Checks(1, 3) = [C4]
+Checks(0, 4) = [M5]
+Checks(1, 4) = [C5]
+Checks(0, 5) = [M6]
+Checks(1, 5) = [C6]
+Checks(0, 6) = [M7]
+Checks(1, 6) = [C7]
+Checks(0, 7) = [M8]
+Checks(1, 7) = [C8]
+Checks(0, 8) = [M9]
+Checks(1, 8) = [C9]
+Checks(0, 9) = [M10]
+Checks(1, 9) = [C10]
+Checks(0, 10) = [M11]
+Checks(1, 10) = [C11]
+'Matrix with the fields
+Dim F(0 To 1, 0 To 10) As String
+F(0, 0) = "[Mark 1]"
+F(1, 0) = "[Cut 1]"
+F(0, 1) = "[Mark 2]"
+F(1, 1) = "[Cut 2]"
+F(0, 2) = "[Mark 3]"
+F(1, 2) = "[Cut 3]"
+F(0, 3) = "[Mark 4]"
+F(1, 3) = "[Cut 4]"
+F(0, 4) = "[Mark 5]"
+F(1, 4) = "[Cut 5]"
+F(0, 5) = "[Mark 6]"
+F(1, 5) = "[Cut 6]"
+F(0, 6) = "[Mark 7]"
+F(1, 6) = "[Cut 7]"
+F(0, 7) = "[Mark 8]"
+F(1, 7) = "[Cut 8]"
+F(0, 8) = "[Mark 9]"
+F(1, 8) = "[Cut 9]"
+F(0, 9) = "[Mark 10]"
+F(1, 9) = "[Cut 10]"
+F(0, 10) = "[Mark 11]"
+F(1, 10) = "[Cut 11]"
+
+'Name string
+Dim namesString As String
+'Add names into the blanks at the end of the string!
+namesString = "Jian-Liang He,Lang Hoang,Hy Le,Linh Nguyen,Rito Sanchez,Hoang Tran,Kim Ngan Tran,Ha Pham,,," 'Three blanks at end for new names
+Dim names() As String
+names = Split(namesString, ",")
+'Day variables
+Dim lastDay As Date
+Dim newDay As Date
+Dim dayOfWeek As Integer
+'Loop variables
+Dim n As Integer
+Dim k As Integer
+
+'Adjustable variables
+Dim gap As Integer 'The allowable number of days between working
+gap = 2
+
+'Row loop, row 0 is marking, row 1 is Comelz
+For k = 0 To 1 'Could add more rows for more operations, just need to add to the field matrix, put in more check boxes, and new message row
+'Internal column loop
+For n = 0 To 10 'change if more than 11 names and blanks. Don't forget 0 counts as a number!
+ 'Pulls the date from the previous record
+ lastDay = DLast(F(k, n), myTable)
+ 'If checkbox is checked, it makes new record entry today's date, else it pulls forward the last day worked
+ newDay = IIf(Checks(k, n) = "-1", Date, lastDay)
+ 'Writing to the record
+ rst.Fields(F(k, n)) = newDay
+ 'Checks the day of the week and returns as as an integer, 5 if Thursday, 6 if Friday
+ dayOfWeek = weekDay(lastDay, vbSunday)
+ 
+ 'If row 0 and Thursday or Friday was last day worked
+ If dayOfWeek = 6 Or dayOfWeek = 5 And k = 0 Then
+ Message = IIf((newDay - lastDay) > gap + 2, Message & names(n) & "  " & lastDay & (Chr(13)) & (Chr(10)), Message) 'Adds two buffer days for weekend
+ 'If row 0 and not a Friday
+ ElseIf k = 0 Then
+ Message = IIf((newDay - lastDay) > gap, Message & names(n) & "  " & lastDay & (Chr(13)) & (Chr(10)), Message) 'Doesn't add the buffer days
+ End If
+ 
+ 'If row 1 and Thursday or Friday was last day worked
+ If dayOfWeek = 6 Or dayOfWeek = 5 And k = 1 Then
+ secondMessage = IIf((newDay - lastDay) > gap + 2, secondMessage & names(n) & "  " & lastDay & (Chr(13)) & (Chr(10)), secondMessage) 'Adds two buffer days for the weekend
+ 'If row 1 and not Friday
+ ElseIf k = 1 Then
+ secondMessage = IIf((newDay - lastDay) > gap, secondMessage & names(n) & "  " & lastDay & (Chr(13)) & (Chr(10)), secondMessage) 'Doesn't add the buffer days
+ End If
+ 
+Next n
+Next k
+
+'Pop up for confimation that all the correct boxes and names are correct
+Dim response
+response = MsgBox("Are you sure you want to submit?", vbYesNo + vbCritical + vbDefaultButton2, "Confirmation")
+If response = vbYes Then 'Only runs if Yes is hit
+'If no one needs marking training then it will display no training, else it will list names of people who need marking training
+Message = IIf(Message = "The following operators need marking table training:" & (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10)), Message & "No Training Needed!", Message)
+'If no one needs Comelz training then it will display no training, else it will list names of people who need marking training
+secondMessage = IIf(secondMessage = (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10)) & "The following operators need Comelz training:" & (Chr(13)) & (Chr(10)) & (Chr(13)) & (Chr(10)), secondMessage & "No Training Needed!", secondMessage)
+MsgBox Message & secondMessage, vbOKOnly, "Training Report" 'Displays message box
+rst.Update 'Will only update the database with the new record if yes is hit in confirmation pop up
+End If
+Set rst = Nothing 'Resets record holding now that it has been updated, will clear when No is hit in confirmation popup
+Set mydb = Nothing
+
+End Sub
+
